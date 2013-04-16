@@ -181,6 +181,25 @@ class Octopus::Proxy
     end
   end
 
+   def cache
+    @shards.each do |k,v|
+      v.connection().instance_variable_set(:@query_cache_enabled, true)
+    end
+    yield
+  ensure
+    clear_query_cache()
+  end
+
+  def clear_query_cache_if_needed(method)
+    clear_query_cache() if [:update, :insert, :delete, :exec_insert, :exec_update, :exec_delete].include?(method)
+  end
+
+  def clear_query_cache
+    @shards.each do |k,v|
+      v.connection().clear_query_cache()
+    end
+  end
+
   def clean_proxy()
     self.current_shard = :master
     self.current_group = nil
@@ -204,6 +223,7 @@ class Octopus::Proxy
   end
 
   def method_missing(method, *args, &block)
+    clear_query_cache_if_needed(method)
     if should_clean_connection?(method)
       conn = select_connection()
       self.last_current_shard = self.current_shard
